@@ -22,6 +22,7 @@ async function request(path, options = {}) {
 
 export const api = {
   listLicenses: (params = {}) => request(`/licenses/?${new URLSearchParams(params)}`),
+  getLicense: (id) => request(`/licenses/${id}/`),
   createLicense: (data) => request('/licenses/', { method: 'POST', body: JSON.stringify(data) }),
   updateLicense: (id, data) => request(`/licenses/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
   listBorrowRecords: (params = {}) => request(`/borrow-records/?${new URLSearchParams(params)}`),

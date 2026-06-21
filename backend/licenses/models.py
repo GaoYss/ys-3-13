@@ -51,6 +51,63 @@ class License(models.Model):
             return self.Status.EXPIRING
         return self.Status.ACTIVE
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if is_new:
+            super().save(*args, **kwargs)
+            LicenseChange.objects.create(
+                license=self,
+                change_type=LicenseChange.ChangeType.CREATED,
+                description=f"创建证照：{self.name}",
+                operator="系统",
+                change_date=timezone.now(),
+            )
+            return
+
+        old_obj = License.objects.filter(pk=self.pk).first()
+        super().save(*args, **kwargs)
+        if old_obj:
+            self._track_changes(old_obj)
+
+    def _track_changes(self, old_obj):
+        track_fields = [
+            ("name", "证照名称"),
+            ("license_no", "证照编号"),
+            ("license_type", "证照类型"),
+            ("issuing_authority", "发证机关"),
+            ("owner_department", "归属部门"),
+            ("keeper", "保管人"),
+            ("issue_date", "发证日期"),
+            ("expiry_date", "到期日期"),
+            ("reminder_days", "提前提醒天数"),
+            ("notes", "备注"),
+        ]
+        for field, label in track_fields:
+            old_val = getattr(old_obj, field)
+            new_val = getattr(self, field)
+            if old_val != new_val:
+                LicenseChange.objects.create(
+                    license=self,
+                    change_type=LicenseChange.ChangeType.FIELD_CHANGED,
+                    field_name=field,
+                    old_value=str(old_val) if old_val else "",
+                    new_value=str(new_val) if new_val else "",
+                    description=f"修改{label}：{old_val} → {new_val}",
+                    operator="系统",
+                    change_date=timezone.now(),
+                )
+        if old_obj.status != self.status:
+            LicenseChange.objects.create(
+                license=self,
+                change_type=LicenseChange.ChangeType.STATUS_CHANGED,
+                field_name="status",
+                old_value=old_obj.get_status_display(),
+                new_value=self.get_status_display(),
+                description=f"状态变更：{old_obj.get_status_display()} → {self.get_status_display()}",
+                operator="系统",
+                change_date=timezone.now(),
+            )
+
 
 class BorrowRecord(models.Model):
     class Status(models.TextChoices):
@@ -83,3 +140,63 @@ class BorrowRecord(models.Model):
         if self.expected_return_date < timezone.localdate():
             return self.Status.OVERDUE
         return self.Status.BORROWED
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if is_new:
+            super().save(*args, **kwargs)
+            LicenseChange.objects.create(
+                license=self.license,
+                change_type=LicenseChange.ChangeType.BORROWED,
+                description=f"证照借出：{self.borrower}（{self.borrower_department}）- {self.purpose}",
+                operator=self.borrower,
+                change_date=timezone.now(),
+                borrow_record=self,
+            )
+            return
+
+        old_obj = BorrowRecord.objects.filter(pk=self.pk).first()
+        super().save(*args, **kwargs)
+        if old_obj and not old_obj.actual_return_date and self.actual_return_date:
+            LicenseChange.objects.create(
+                license=self.license,
+                change_type=LicenseChange.ChangeType.RETURNED,
+                description=f"证照归还：{self.borrower}，归还日期 {self.actual_return_date}",
+                operator=self.borrower,
+                change_date=timezone.now(),
+                borrow_record=self,
+            )
+
+
+class LicenseChange(models.Model):
+    class ChangeType(models.TextChoices):
+        CREATED = "created", "创建"
+        STATUS_CHANGED = "status_changed", "状态变更"
+        FIELD_CHANGED = "field_changed", "信息修改"
+        BORROWED = "borrowed", "借出"
+        RETURNED = "returned", "归还"
+
+    license = models.ForeignKey(License, on_delete=models.CASCADE, related_name="changes", verbose_name="证照")
+    change_type = models.CharField("变更类型", max_length=32, choices=ChangeType.choices)
+    field_name = models.CharField("字段名", max_length=64, blank=True)
+    old_value = models.TextField("旧值", blank=True)
+    new_value = models.TextField("新值", blank=True)
+    description = models.CharField("变更描述", max_length=255)
+    operator = models.CharField("操作人", max_length=60, blank=True)
+    change_date = models.DateTimeField("变更时间", default=timezone.now)
+    borrow_record = models.ForeignKey(
+        BorrowRecord,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="changes",
+        verbose_name="借还记录",
+    )
+
+    class Meta:
+        verbose_name = "证照变更记录"
+        verbose_name_plural = "证照变更记录"
+        ordering = ["-change_date", "-id"]
+
+    def __str__(self):
+        return f"{self.license.name} - {self.get_change_type_display()}"

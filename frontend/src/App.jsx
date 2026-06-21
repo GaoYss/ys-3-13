@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell.jsx'
 import { Toast } from './components/Toast.jsx'
 import { BorrowPage } from './pages/BorrowPage.jsx'
 import { DashboardPage } from './pages/DashboardPage.jsx'
+import { LicenseDetailPage } from './pages/LicenseDetailPage.jsx'
 import { LicensePage } from './pages/LicensePage.jsx'
 import { StatsPage } from './pages/StatsPage.jsx'
 
@@ -18,6 +19,7 @@ const navItems = [
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard')
+  const [selectedLicenseId, setSelectedLicenseId] = useState(null)
   const [licenses, setLicenses] = useState([])
   const [borrowRecords, setBorrowRecords] = useState([])
   const [stats, setStats] = useState(null)
@@ -44,6 +46,14 @@ export default function App() {
     loadAll().catch((error) => setToast(error.message))
   }, [])
 
+  const openLicenseDetail = (id) => {
+    setSelectedLicenseId(id)
+  }
+
+  const closeLicenseDetail = () => {
+    setSelectedLicenseId(null)
+  }
+
   const context = useMemo(
     () => ({
       licenses,
@@ -52,23 +62,39 @@ export default function App() {
       loading,
       reload: loadAll,
       notify: setToast,
+      openLicenseDetail,
     }),
     [licenses, borrowRecords, stats, loading],
   )
 
-  const page = {
-    dashboard: <DashboardPage {...context} />,
-    licenses: <LicensePage {...context} />,
-    borrows: <BorrowPage {...context} />,
-    stats: <StatsPage {...context} />,
-  }[activePage]
+  let page
+  if (selectedLicenseId) {
+    page = (
+      <LicenseDetailPage
+        licenseId={selectedLicenseId}
+        onBack={closeLicenseDetail}
+        reloadAll={loadAll}
+        notify={setToast}
+      />
+    )
+  } else {
+    page = {
+      dashboard: <DashboardPage {...context} />,
+      licenses: <LicensePage {...context} />,
+      borrows: <BorrowPage {...context} />,
+      stats: <StatsPage {...context} />,
+    }[activePage]
+  }
 
   return (
     <>
       <AppShell
         activePage={activePage}
         navItems={navItems}
-        onNavigate={setActivePage}
+        onNavigate={(key) => {
+          setSelectedLicenseId(null)
+          setActivePage(key)
+        }}
         title="企业证照管理系统"
         subtitle="证照台账、到期提醒、借出归还与统计分析"
         headerIcon={ClipboardList}

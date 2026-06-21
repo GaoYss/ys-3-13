@@ -5,7 +5,7 @@ import { EmptyState } from '../components/EmptyState.jsx'
 import { MetricCard } from '../components/MetricCard.jsx'
 import { StatusBadge } from '../components/StatusBadge.jsx'
 
-export function StatsPage({ stats }) {
+export function StatsPage({ stats, openLicenseDetail }) {
   const byType = stats?.by_type || {}
   const maxTypeCount = Math.max(1, ...Object.values(byType))
 
@@ -57,7 +57,11 @@ export function StatsPage({ stats }) {
           {stats?.expired?.length ? (
             <div className="record-list">
               {stats.expired.map((item) => (
-                <div className="record-row" key={item.id}>
+                <div
+                  className="record-row clickable"
+                  key={item.id}
+                  onClick={() => openLicenseDetail && openLicenseDetail(item.id)}
+                >
                   <div>
                     <strong>{item.name}</strong>
                     <span>{item.owner_department}</span>

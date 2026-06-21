@@ -1,10 +1,14 @@
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from rest_framework import viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
-from .models import BorrowRecord, License
-from .serializers import BorrowRecordSerializer, LicenseSerializer
+from .models import BorrowRecord, License, LicenseChange
+from .serializers import (
+    BorrowRecordSerializer,
+    LicenseDetailSerializer,
+    LicenseSerializer,
+)
 from .services import dashboard_stats, refresh_borrow_status, refresh_license_status
 
 
@@ -29,6 +33,26 @@ class LicenseViewSet(viewsets.ModelViewSet):
         if license_type:
             queryset = queryset.filter(license_type=license_type)
         return queryset
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return LicenseDetailSerializer
+        return LicenseSerializer
+
+    def get_queryset_for_detail(self):
+        return License.objects.prefetch_related(
+            Prefetch("borrow_records", queryset=BorrowRecord.objects.order_by("-borrow_date", "-created_at")),
+            Prefetch("changes", queryset=LicenseChange.objects.order_by("-change_date", "-id")),
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        queryset = self.get_queryset_for_detail()
+        instance = queryset.get(pk=kwargs["pk"])
+        refresh_license_status(instance)
+        for record in instance.borrow_records.all():
+            refresh_borrow_status(record)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         license_obj = serializer.save()

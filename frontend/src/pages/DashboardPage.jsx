@@ -4,7 +4,7 @@ import { EmptyState } from '../components/EmptyState.jsx'
 import { MetricCard } from '../components/MetricCard.jsx'
 import { StatusBadge } from '../components/StatusBadge.jsx'
 
-export function DashboardPage({ stats, loading }) {
+export function DashboardPage({ stats, loading, openLicenseDetail }) {
   const upcoming = stats?.upcoming_expiries || []
 
   return (
@@ -34,7 +34,11 @@ export function DashboardPage({ stats, loading }) {
           ) : upcoming.length ? (
             <div className="record-list">
               {upcoming.map((item) => (
-                <div className="record-row" key={item.id}>
+                <div
+                  className="record-row clickable"
+                  key={item.id}
+                  onClick={() => openLicenseDetail && openLicenseDetail(item.id)}
+                >
                   <div>
                     <strong>{item.name}</strong>
                     <span>{item.issuing_authority}</span>

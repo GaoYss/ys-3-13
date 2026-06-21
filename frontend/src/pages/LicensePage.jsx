@@ -20,7 +20,7 @@ const initialForm = {
   notes: '',
 }
 
-export function LicensePage({ licenses, reload, notify }) {
+export function LicensePage({ licenses, reload, notify, openLicenseDetail }) {
   const [form, setForm] = useState(initialForm)
   const [filters, setFilters] = useState({ search: '', status: '' })
   const [saving, setSaving] = useState(false)
@@ -119,7 +119,11 @@ export function LicensePage({ licenses, reload, notify }) {
                 <span>状态</span>
               </div>
               {filteredLicenses.map((item) => (
-                <div className="table-row license-row" key={item.id}>
+                <div
+                  className="table-row license-row clickable"
+                  key={item.id}
+                  onClick={() => openLicenseDetail && openLicenseDetail(item.id)}
+                >
                   <div>
                     <strong>{item.name}</strong>
                     <span>{item.license_no}</span>
